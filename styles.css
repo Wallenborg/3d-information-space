@@ -1,16 +1,31 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: #0e0e0d;
   color: #d8d6d0;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-#stage, #stage canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#stage, #stage canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* Input-mode variants: desktop hints by default, touch hints when html.touch. */
+.touch-only { display: none; }
+html.touch .touch-only { display: block; }
+html.touch .desktop-only { display: none; }
 
 .hidden { display: none !important; }
 
@@ -22,6 +37,7 @@ html, body {
   justify-content: center;
   background: #0e0e0d;
   z-index: 10;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 /* search */
@@ -58,7 +74,7 @@ h1 {
 #search-input:focus { border-bottom-color: #8a8880; }
 #search-input::placeholder { color: #4a4945; }
 
-#suggestions { list-style: none; position: absolute; left: 0; right: 0; top: 100%; }
+#suggestions { list-style: none; position: absolute; left: 0; right: 0; top: 100%; max-height: 50vh; max-height: 50dvh; overflow-y: auto; }
 #suggestions li {
   padding: 9px 0;
   font-size: 14px;
@@ -98,14 +114,19 @@ h1 {
 
 .corner {
   position: fixed;
-  bottom: 22px;
+  bottom: calc(22px + var(--safe-bottom));
   font-size: 11px;
   letter-spacing: 0.08em;
   color: inherit;
   opacity: 0.6;
 }
-.corner.left { left: 24px; }
-.corner.right { right: 24px; }
+.corner.left { left: calc(24px + var(--safe-left)); }
+.corner.right { right: calc(24px + var(--safe-right)); }
+html.touch .corner { padding: 10px; margin: -10px; font-size: 12px; } /* larger tap targets, same look */
+.rotate-hint { display: none; margin-top: 14px; opacity: 0.7; font-size: 11px; }
+@media (orientation: portrait) and (max-width: 600px) {
+  html.touch .rotate-hint { display: block; }
+}
 button.corner { background: none; border: 0; font: inherit; cursor: pointer; }
 button.corner:hover { opacity: 1; }
 
@@ -134,7 +155,7 @@ button.corner:hover { opacity: 1; }
   left: 0;
   top: 12px;
   transform: translateX(-50%);
-  max-width: 340px;
+  max-width: min(340px, 80vw);
   width: max-content;
   text-align: center;
   font-size: 11px;
@@ -146,15 +167,75 @@ button.corner:hover { opacity: 1; }
 #status {
   position: fixed;
   left: 50%;
-  bottom: 26px;
+  bottom: calc(26px + var(--safe-bottom));
   transform: translateX(-50%);
   z-index: 6;
+  max-width: 80vw;
+  text-align: center;
   font-size: 11px;
+  line-height: 1.5;
   letter-spacing: 0.06em;
   color: #fff;
   mix-blend-mode: difference;
   pointer-events: none;
 }
+/* On touch the bottom edge belongs to the thumbs: status moves to the top. */
+html.touch #status { bottom: auto; top: calc(18px + var(--safe-top)); }
+
+/* touch navigation — hairlines and small glyphs, not a gamepad */
+
+.touch-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.touch-stick {
+  position: absolute;
+  left: calc(64px + var(--safe-left));
+  top: calc(100% - 96px - var(--safe-bottom));
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  mix-blend-mode: difference;
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.touch-stick.engaged { opacity: 0.9; transition: none; }
+.touch-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+}
+.touch-btn {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  mix-blend-mode: difference;
+  opacity: 0.5;
+  touch-action: none;
+}
+.touch-btn.held { opacity: 0.95; background: rgba(255, 255, 255, 0.18); }
+.touch-up { right: calc(22px + var(--safe-right)); bottom: calc(86px + var(--safe-bottom)); }
+.touch-down { right: calc(22px + var(--safe-right)); bottom: calc(30px + var(--safe-bottom)); }
+.touch-menu { left: calc(16px + var(--safe-left)); top: calc(14px + var(--safe-top)); border-color: transparent; font-size: 18px; }
 
 /* debug */
 
@@ -182,3 +263,33 @@ button.corner:hover { opacity: 1; }
 #debug .swatch { flex: 1; height: 22px; font-size: 8px; padding: 2px; color: #000; mix-blend-mode: normal; }
 #debug .tree div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #debug .muted { color: #5d5b56; }
+
+/* narrow screens: debug becomes a bottom sheet */
+@media (max-width: 700px) {
+  #debug {
+    top: auto;
+    left: calc(8px + var(--safe-left));
+    right: calc(8px + var(--safe-right));
+    bottom: calc(64px + var(--safe-bottom)); /* keeps "new search" and "debug" reachable below */
+    width: auto;
+    max-height: 50vh;
+    max-height: 50dvh;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  #debug { top: calc(8px + var(--safe-top)); bottom: calc(64px + var(--safe-bottom)); right: calc(8px + var(--safe-right)); left: auto; width: min(340px, 45vw); max-height: none; }
+}
+
+/* small screens: typography scaled for phones */
+@media (max-width: 480px) {
+  h1 { letter-spacing: 0.3em; font-size: 12px; }
+  #search-form { margin-top: 40px; }
+  #search-input { font-size: 20px; }
+  #suggestions li { padding: 11px 0; font-size: 15px; }
+}
+@media (max-height: 460px) {
+  #search-form { margin-top: 24px; }
+  #suggestions { max-height: 40vh; max-height: 40dvh; }
+  .enter-hint { line-height: 1.6; }
+  #enter-title { margin-bottom: 14px; }
+}

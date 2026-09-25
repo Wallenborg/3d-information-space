@@ -1,6 +1,7 @@
 // A Wikipedia image as an independent spatial plane, suspended in its frame.
 
 import * as THREE from 'three';
+import { PERF } from '../device.js';
 
 const PLANE = new THREE.PlaneGeometry(1, 1);
 PLANE.userData.shared = true;
@@ -9,7 +10,7 @@ const loader = new THREE.TextureLoader().setCrossOrigin('anonymous');
 // Load images a few at a time so a new world doesn't flood the network.
 const queue = [];
 let loading = 0;
-const MAX_CONCURRENT = 4;
+const MAX_CONCURRENT = PERF.imageConcurrency;
 
 function pump() {
   while (loading < MAX_CONCURRENT && queue.length) {
@@ -41,7 +42,7 @@ export class ImageSurface {
       done: (texture) => {
         if (!texture || this.job.cancelled) return texture?.dispose();
         texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = 8;
+        texture.anisotropy = PERF.anisotropy;
         this.material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         this.mesh.material = this.material;
       },

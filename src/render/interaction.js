@@ -18,17 +18,39 @@ export class Interaction {
     this.focus = null; // { kind: 'surface' | 'link', ... }
     this.highlighted = null;
     this.lastText = undefined;
-    this.onLink = null; // (target) => void
+    this.onLink = null; // (target, arm) => void
+    this.onNote = null; // (text) => void — e.g. an image caption revealed by a tap
+    this.every = 1; // run the centre-focus pick every n frames (mobile budget)
+    this.frame = 0;
   }
 
   update(enabled) {
+    if (enabled && this.every > 1 && this.frame++ % this.every) return;
     this.focus = null;
     if (enabled) this.focus = this.pick();
     this.highlight(this.focus && this.focus.kind === 'link' ? this.focus : null);
     this.render();
   }
 
-  pick() {
+  /**
+   * Touch: interact with whatever is under the finger (NDC coordinates).
+   * Thin link arms get a wider tolerance so they stay easy to hit.
+   */
+  tapAt(ndcX, ndcY) {
+    const saved = this.center.clone();
+    this.center.set(ndcX, ndcY);
+    const f = this.pick(2.4);
+    this.center.copy(saved);
+    if (!f) return false;
+    this.focus = f;
+    if (this.activate()) return true;
+    // Nothing to activate (an image, single-page text): reveal what it is instead.
+    const note = f.kind === 'surface' ? f.target.describe(f.uv) : null;
+    if (note) this.onNote?.(note);
+    return Boolean(note);
+  }
+
+  pick(tolerance = 1) {
     this.ray.setFromCamera(this.center, this.camera);
     this.ray.far = Math.max(REACH, LINK_REACH);
     const targets = [];
@@ -48,7 +70,7 @@ export class Interaction {
           const { distance, t } = raySegmentDistance(o, d, a, b);
           if (t > LINK_REACH || t > hitDistance) continue; // too far, or hidden behind architecture/text
           const score = distance / (0.3 + t * 0.03);
-          if (score < 1 && (!best || score < best.score)) best = { kind: 'link', world, link, score, t };
+          if (score < tolerance && (!best || score < best.score)) best = { kind: 'link', world, link, score, t };
         }
       }
     }

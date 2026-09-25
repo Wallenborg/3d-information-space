@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 import { buildWorldObject } from './worldObject.js';
+import { PERF } from '../device.js';
+
+/**
+ * Landscape keeps the original vertical field of view. In portrait the
+ * vertical FOV opens up (capped) so the horizontal view doesn't collapse
+ * into a narrow slit.
+ */
+function fovFor(aspect) {
+  if (aspect >= 1) return BASE_FOV;
+  const hHalf = (BASE_FOV * Math.PI) / 360; // keep the horizontal view of a square screen
+  const v = (2 * Math.atan(Math.tan(hHalf) / aspect) * 180) / Math.PI;
+  return Math.min(MAX_PORTRAIT_FOV, v);
+}
 
 function atmosphereOf(spec) {
   const { palette, atmosphere } = spec;
@@ -12,10 +25,14 @@ function atmosphereOf(spec) {
   };
 }
 
+const BASE_FOV = 68;
+const MAX_PORTRAIT_FOV = 88;
+
 export class SpaceRenderer {
   constructor(container) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.pixelRatio = Math.min(window.devicePixelRatio, PERF.maxPixelRatio);
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     container.appendChild(this.renderer.domElement);
 
@@ -23,19 +40,43 @@ export class SpaceRenderer {
     this.scene.background = new THREE.Color('#0e0e0d');
     this.scene.fog = new THREE.FogExp2('#0e0e0d', 0.012);
 
-    this.camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1500);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.1, 1500);
 
     this.hemi = new THREE.HemisphereLight('#ffffff', '#444444', 1.7);
     this.sun = new THREE.DirectionalLight('#ffffff', 1.6);
     this.scene.add(this.hemi, this.sun, this.sun.target);
 
     this.worlds = new Set();
+    this.frameTimes = [];
 
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
+    const resize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.camera.aspect = w / h;
+      this.camera.fov = fovFor(this.camera.aspect);
       this.camera.updateProjectionMatrix();
+      this.renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+    resize();
+  }
+
+  /**
+   * Mobile budget: if frames stay slow, step the pixel ratio down (never below
+   * the minimum). The architecture itself is never simplified.
+   */
+  adapt(dt) {
+    if (!PERF.adaptive || this.pixelRatio <= PERF.minPixelRatio) return;
+    this.frameTimes.push(dt);
+    if (this.frameTimes.length < 90) return;
+    const avg = this.frameTimes.reduce((s, v) => s + v, 0) / this.frameTimes.length;
+    this.frameTimes.length = 0;
+    if (avg > 1 / 34) {
+      this.pixelRatio = Math.max(PERF.minPixelRatio, this.pixelRatio - 0.25);
+      this.renderer.setPixelRatio(this.pixelRatio);
       this.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    }
   }
 
   get canvas() {
@@ -116,6 +157,7 @@ export class SpaceRenderer {
   }
 
   render(dt) {
+    this.adapt(dt);
     this.blendAtmosphere();
     for (const world of this.worlds) {
       world.update(dt);

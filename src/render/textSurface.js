@@ -3,11 +3,12 @@
 // Turning the page redraws the texture; nothing about the architecture changes.
 
 import * as THREE from 'three';
+import { PERF } from '../device.js';
 
 const PLANE = new THREE.PlaneGeometry(1, 1);
 PLANE.userData.shared = true;
-const PX_PER_UNIT = 230;
-const MAX_PX = 1024;
+const PX_PER_UNIT = PERF.textPxPerUnit;
+const MAX_PX = PERF.textMaxPx;
 const FONT_FAMILY = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
 export class TextSurface {
@@ -46,7 +47,7 @@ export class TextSurface {
     this.layout(ppu);
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = 8;
+    this.texture.anisotropy = PERF.anisotropy;
     this.mesh.material = new THREE.MeshBasicMaterial({ map: this.texture });
     this.draw();
   }

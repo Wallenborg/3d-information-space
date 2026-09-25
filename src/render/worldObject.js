@@ -1,6 +1,7 @@
 // Spatial spec → three.js objects. Knows nothing about Wikipedia.
 
 import * as THREE from 'three';
+import { PERF } from '../device.js';
 import { createLabel } from './labels.js';
 import { TextSurface } from './textSurface.js';
 import { ImageSurface } from './imageSurface.js';
@@ -9,8 +10,8 @@ import { linkPieces, LinkLabel, LABEL_NEAR, LABEL_FAR, pointSegmentDistance } fr
 // Text textures exist only near the viewer: information fades into fog and is forgotten in detail.
 const DETAIL_RADIUS = 38;
 const RELEASE_RADIUS = 50;
-const MAX_ACTIVE_TEXT = 44;
-const ACTIVATIONS_PER_TICK = 5;
+const MAX_ACTIVE_TEXT = PERF.maxActiveText;
+const ACTIVATIONS_PER_TICK = PERF.textActivationsPerTick;
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const EMERGE_SPREAD = 3.2; // seconds over which the world grows outward from its threshold

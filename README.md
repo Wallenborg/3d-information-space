@@ -19,6 +19,8 @@ Open an article directly with `http://localhost:8765/#Octopus`.
 
 Controls: click to enter · WASD move · Space / C up / down · Shift faster · Mouse look · Click text (or Q / E) to turn pages · Click a link (arm or coloured word) to follow it · Esc release · I debug panel.
 
+Touch (phones, tablets): tap to enter · left thumb = floating joystick (push past the rim to go faster) · drag elsewhere to look · ↑ / ↓ to rise and sink · tap text, images and links · ≡ to leave the world. `?touch=1` forces touch mode on desktop.
+
 ## Structure
 
 ```

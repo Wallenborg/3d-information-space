@@ -6,14 +6,35 @@ import { generateWorld, STEPS } from './pipeline.js';
 import { setupSearch } from './ui/search.js';
 import { renderDebug } from './ui/debug.js';
 import { Interaction } from './render/interaction.js';
+import { setupTouchControls } from './ui/touchControls.js';
+import { TOUCH, PERF } from './device.js';
 
 const $ = (id) => document.getElementById(id);
 const screens = { search: $('search'), loading: $('loading'), enter: $('enter') };
+if (TOUCH) document.documentElement.classList.add('touch');
 
 const renderer = new SpaceRenderer($('stage'));
 const controls = new FlyControls(renderer.camera, renderer.canvas);
 const worlds = new WorldManager(renderer, { maxWorlds: 3 });
 const interaction = new Interaction(renderer.camera, renderer, $('focus'));
+interaction.every = PERF.focusEvery;
+
+// Touch: a joystick, look-drag and tap layer driving the same controls and interaction.
+const touch = TOUCH
+  ? setupTouchControls(controls, {
+      onTap: (x, y) => interaction.tapAt((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1),
+      onMenu: () => controls.setTouchActive(false),
+    })
+  : null;
+
+function note(text, ms) {
+  const status = $('status');
+  status.textContent = text;
+  status.classList.remove('hidden');
+  clearTimeout(note.timer);
+  note.timer = setTimeout(() => status.classList.add('hidden'), ms);
+}
+interaction.onNote = (text) => note(text, 5000);
 
 let mode = 'search'; // search | loading | world
 const debugPanel = $('debug');
@@ -133,14 +154,21 @@ function backToSearch() {
 }
 
 screens.enter.addEventListener('click', (e) => {
-  if (e.target.closest('#back-to-search')) return;
-  controls.lock();
+  if (e.target.closest('#back-to-search, #debug-toggle')) return;
+  if (TOUCH) controls.setTouchActive(true);
+  else controls.lock();
 });
 $('back-to-search').addEventListener('click', backToSearch);
+$('debug-toggle').addEventListener('click', () => {
+  debugPanel.classList.toggle('hidden');
+  renderDebug(debugPanel, worlds);
+});
 
-controls.onLockChange = (locked) => {
+controls.onLockChange = (active) => {
   if (mode !== 'world') return;
-  screens.enter.classList.toggle('hidden', locked);
+  screens.enter.classList.toggle('hidden', active);
+  touch?.setVisible(active);
+  if (active && TOUCH) debugPanel.classList.add('hidden'); // the sheet would cover the thumbs
 };
 
 // Click while inside the world activates whatever is in focus (e.g. turns a page).
@@ -162,9 +190,14 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  if (mode === 'world') controls.update(dt);
-  interaction.update(mode === 'world' && controls.locked);
-  renderer.render(dt);
+  if (mode === 'world') {
+    controls.update(dt);
+    interaction.update(controls.active);
+    renderer.render(dt);
+  } else {
+    interaction.update(false);
+  }
+  // Search and loading screens cover the canvas: nothing is rendered behind them.
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -174,4 +207,4 @@ const initial = decodeURIComponent(location.hash.slice(1));
 if (initial) open(initial);
 else search.focus();
 
-window.__space = { worlds, renderer, controls, interaction, open };
+window.__space = { worlds, renderer, controls, interaction, open, TOUCH };
