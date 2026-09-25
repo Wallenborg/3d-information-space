@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Information Space</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <!-- search -->
+  <section id="search" class="screen">
+    <div class="search-inner">
+      <h1>3D INFORMATION SPACE</h1>
+      <p class="sub">Explore Wikipedia as a spatial environment.</p>
+      <form id="search-form" autocomplete="off">
+        <input id="search-input" type="text" placeholder="Search Wikipedia…" spellcheck="false" />
+        <ul id="suggestions"></ul>
+      </form>
+      <p id="search-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- generation status -->
+  <section id="loading" class="screen hidden">
+    <div class="loading-inner">
+      <div id="loading-title"></div>
+      <ol id="loading-steps"></ol>
+    </div>
+  </section>
+
+  <!-- shown while pointer is released inside a world -->
+  <section id="enter" class="hidden">
+    <div class="enter-inner">
+      <div id="enter-title"></div>
+      <div class="enter-hint">
+        <div><b>Click</b> to enter</div>
+        <div><b>WASD</b> to move</div>
+        <div><b>Space / C</b> to move up and down</div>
+        <div><b>Mouse</b> to look</div>
+        <div><b>Click</b> text to turn its pages</div>
+        <div><b>Click</b> a link to follow it</div>
+      </div>
+    </div>
+    <button id="back-to-search" class="corner left">← new search</button>
+    <span class="corner right">I — debug</span>
+  </section>
+
+  <!-- tiny contextual indicator, only when something at the centre is interactive -->
+  <div id="focus" class="hidden"><span class="focus-dot"></span><span class="focus-text"></span></div>
+
+  <div id="status" class="hidden"></div>
+
+  <aside id="debug" class="hidden"></aside>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

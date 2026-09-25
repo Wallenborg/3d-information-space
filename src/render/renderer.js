@@ -1,0 +1,127 @@
+import * as THREE from 'three';
+import { buildWorldObject } from './worldObject.js';
+
+function atmosphereOf(spec) {
+  const { palette, atmosphere } = spec;
+  const bg = new THREE.Color(palette.atmosphere);
+  return {
+    bg,
+    sky: bg.clone().lerp(new THREE.Color('#ffffff'), palette.light ? 0.6 : 0.75),
+    ground: bg.clone().lerp(new THREE.Color(palette.primary), 0.5).multiplyScalar(palette.light ? 0.8 : 0.6),
+    density: atmosphere.fogDensity,
+  };
+}
+
+export class SpaceRenderer {
+  constructor(container) {
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(this.renderer.domElement);
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#0e0e0d');
+    this.scene.fog = new THREE.FogExp2('#0e0e0d', 0.012);
+
+    this.camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1500);
+
+    this.hemi = new THREE.HemisphereLight('#ffffff', '#444444', 1.7);
+    this.sun = new THREE.DirectionalLight('#ffffff', 1.6);
+    this.scene.add(this.hemi, this.sun, this.sun.target);
+
+    this.worlds = new Set();
+
+    window.addEventListener('resize', () => {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  }
+
+  get canvas() {
+    return this.renderer.domElement;
+  }
+
+  addWorld(spec, offset = [0, 0, 0], rotationY = 0) {
+    const world = buildWorldObject(spec);
+    world.group.position.set(...offset);
+    world.group.rotation.y = rotationY;
+    world.group.updateMatrixWorld(true);
+    world.atmo = atmosphereOf(spec);
+    this.scene.add(world.group);
+    this.worlds.add(world);
+    return world;
+  }
+
+  removeWorld(world) {
+    this.scene.remove(world.group);
+    world.dispose();
+    this.worlds.delete(world);
+  }
+
+  /** Atmosphere of the world currently inhabited. */
+  setAtmosphere(spec) {
+    const { palette, atmosphere } = spec;
+    const atmo = new THREE.Color(palette.atmosphere);
+    this.scene.background.copy(atmo);
+    this.scene.fog.color.copy(atmo);
+    this.scene.fog.density = atmosphere.fogDensity;
+
+    const sky = atmo.clone().lerp(new THREE.Color('#ffffff'), palette.light ? 0.6 : 0.75);
+    const ground = atmo.clone().lerp(new THREE.Color(palette.primary), 0.5).multiplyScalar(palette.light ? 0.8 : 0.6);
+    this.hemi.color.copy(sky);
+    this.hemi.groundColor.copy(ground);
+    this.sun.position.set(...atmosphere.light).multiplyScalar(100);
+  }
+
+  /**
+   * With several worlds present, the atmosphere is a blend weighted by
+   * proximity: moving toward another world gradually takes on its air.
+   */
+  blendAtmosphere() {
+    if (this.worlds.size < 2) return;
+    const anchor = new THREE.Vector3();
+    let total = 0;
+    const bg = new THREE.Color(0, 0, 0);
+    const sky = new THREE.Color(0, 0, 0);
+    const ground = new THREE.Color(0, 0, 0);
+    let density = 0;
+    for (const w of this.worlds) {
+      w.group.localToWorld(anchor.set(...w.spec.entry.target));
+      const d = Math.max(10, anchor.distanceTo(this.camera.position));
+      const weight = 1 / (d * d * d);
+      total += weight;
+      bg.add(w.atmo.bg.clone().multiplyScalar(weight));
+      sky.add(w.atmo.sky.clone().multiplyScalar(weight));
+      ground.add(w.atmo.ground.clone().multiplyScalar(weight));
+      density += w.atmo.density * weight;
+    }
+    this.scene.background.copy(bg.multiplyScalar(1 / total));
+    this.scene.fog.color.copy(this.scene.background);
+    this.scene.fog.density = density / total;
+    this.hemi.color.copy(sky.multiplyScalar(1 / total));
+    this.hemi.groundColor.copy(ground.multiplyScalar(1 / total));
+  }
+
+  /** The world whose threshold is nearest the viewer. */
+  nearestWorld() {
+    let best = null;
+    const anchor = new THREE.Vector3();
+    for (const w of this.worlds) {
+      w.group.localToWorld(anchor.set(...w.spec.entry.target));
+      const d = anchor.distanceTo(this.camera.position);
+      if (!best || d < best.d) best = { w, d };
+    }
+    return best && best.w;
+  }
+
+  render(dt) {
+    this.blendAtmosphere();
+    for (const world of this.worlds) {
+      world.update(dt);
+      world.updateDetail(dt, this.camera.position);
+      world.updateFrame(this.camera);
+    }
+    this.renderer.render(this.scene, this.camera);
+  }
+}
